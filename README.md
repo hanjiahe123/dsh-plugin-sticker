@@ -67,11 +67,14 @@ sticker_revert {"backup": "<id>"}     → 还原到写入前
 ## 安装
 
 ```
-# 从 GitHub 按 tag 装（推荐：版本可锁，行为可复现）
-plugin_manager {"action":"install_bundle","target":"github:hanjiahe123/dsh-plugin-sticker#v0.2.0"}
+# npm（推荐）
+plugin_manager {"action":"install_bundle","target":"dsh-plugin-sticker"}
+
+# 或从 GitHub 按 tag 装，版本锁死、可复现
+plugin_manager {"action":"install_bundle","target":"github:hanjiahe123/dsh-plugin-sticker#v0.2.1"}
 ```
 
-也可以在 DSH 的「插件」页 → 添加插件，填上面的 `github:` 地址，或仓库 release 里的 tarball 链接。
+也可以在 DSH 的「插件」页 → 添加插件，填上面任一地址。
 
 装完刷新「插件」页：设置页立刻可用，agent 工具在下一次会话生效。
 
