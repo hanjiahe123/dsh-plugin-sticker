@@ -1,7 +1,11 @@
 // dsh-plugin-sticker · Host 插件
 //
 // 给已装的 DSH 插件贴一张"工牌"：把中文显示名写进包里的 locale 元数据。
-// 插件本身不猜名字——它只做三件事：扫描、按模型给的名字写入、按备份还原。
+// 插件本身不猜名字——它只做三件事：扫描、按调用方给的名字写入、按备份还原。
+//
+// 两个入口共用 lib/ops.js 里的同一份实现：
+//   · 工具  sticker_scan / sticker_apply / sticker_revert（给 agent 用）
+//   · 路由  /api/plugin-sticker/*（给「设置 → 插件工牌」那一页用）
 //
 // 安全约定：
 //   1) 只碰 profile 里已安装的包；DSH 安装目录里的包一律只读。
@@ -12,34 +16,15 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveProfileDir } from './lib/profile.js'
-import { scanBundles } from './lib/scan.js'
-import {
-  commitPlans,
-  listBackups,
-  planSticker,
-  revertBackup,
-  validateDescription,
-  validateTitle,
-} from './lib/sticker.js'
+import { createOps } from './lib/ops.js'
 
 export const name = 'plugin-sticker'
 export const inject = ['tools']
 
-const SELF_PACKAGE = 'dsh-plugin-sticker'
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url))
-const README_LIMIT = 600
 
 function textBlocks(value) {
   return [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }]
-}
-
-function failure(error) {
-  return { ok: false, error: error instanceof Error ? error.message : String(error) }
-}
-
-/** Resolve the running profile, preferring explicit configuration. */
-function locate(options) {
-  return resolveProfileDir({ configured: options.profileDir, selfPackage: SELF_PACKAGE, selfDir: SELF_DIR })
 }
 
 function describeScan(value) {
@@ -93,7 +78,7 @@ function describeBackups(value) {
   ].join('\n')
 }
 
-function scanTool(options) {
+function scanTool(ops) {
   return {
     name: 'sticker_scan',
     description:
@@ -101,33 +86,16 @@ function scanTool(options) {
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     output: { schema: { type: 'object', additionalProperties: true }, render: (_args, value) => textBlocks(describeScan(value)) },
     async execute() {
-      const profileDir = locate(options)
-      if (!profileDir) {
-        return {
-          ok: false,
-          error: '找不到 profile 目录。请确认 Harness 是用 profile 启动的，或在插件配置里写 profileDir。',
-        }
-      }
-      const rows = scanBundles(profileDir, { selfName: SELF_PACKAGE, installDir: process.env.DSH_INSTALL_DIR })
-      const bundles = rows.map((row) => ({
-        ...row,
-        readmeExcerpt: row.readmeExcerpt ? row.readmeExcerpt.slice(0, README_LIMIT) : null,
-      }))
-      return {
-        ok: true,
-        profileDir,
-        counts: {
-          total: bundles.length,
-          pending: bundles.filter((row) => row.canApply && !row.hasSticker).length,
-          skipped: bundles.filter((row) => !row.canApply).length,
-        },
-        bundles,
+      try {
+        return ops.list({ readmeLimit: 600 })
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) }
       }
     },
   }
 }
 
-function applyTool(options) {
+function applyTool(ops) {
   return {
     name: 'sticker_apply',
     description:
@@ -155,69 +123,12 @@ function applyTool(options) {
     },
     output: { schema: { type: 'object', additionalProperties: true }, render: (_args, value) => textBlocks(describeApply(value)) },
     async execute(args) {
-      const items = args?.items
-      if (!Array.isArray(items) || items.length === 0) {
-        return { ok: false, error: 'items 不能为空。' }
-      }
-      const profileDir = locate(options)
-      if (!profileDir) {
-        return { ok: false, error: '找不到 profile 目录。' }
-      }
-
-      const rows = scanBundles(profileDir, { selfName: SELF_PACKAGE, installDir: process.env.DSH_INSTALL_DIR })
-      const byName = new Map(rows.map((row) => [row.package, row]))
-      const plans = []
-      const rejected = []
-
-      for (const item of items) {
-        const packageName = typeof item?.package === 'string' ? item.package.trim() : ''
-        const row = byName.get(packageName)
-        if (!row) {
-          rejected.push({ package: packageName || '(空)', reason: '不在这个 profile 的已装 bundle 里' })
-          continue
-        }
-        if (!row.canApply) {
-          rejected.push({ package: row.package, reason: '这个包不能改（' + row.skipReason + '）' })
-          continue
-        }
-        const titleError = validateTitle(item.title)
-        if (titleError) {
-          rejected.push({ package: row.package, reason: titleError })
-          continue
-        }
-        const descriptionError = validateDescription(item.description)
-        if (descriptionError) {
-          rejected.push({ package: row.package, reason: descriptionError })
-          continue
-        }
-        try {
-          plans.push(
-            planSticker({
-              package: row.package,
-              dir: row.dir,
-              title: item.title.trim(),
-              description: item.description,
-            }),
-          )
-        } catch (error) {
-          rejected.push({ package: row.package, reason: error instanceof Error ? error.message : String(error) })
-        }
-      }
-
-      if (plans.length === 0) {
-        return { ok: false, rejected }
-      }
-      try {
-        const { backupId, applied } = commitPlans(profileDir, plans)
-        return { ok: true, profileDir, backupId, applied, rejected }
-      } catch (error) {
-        return { ...failure(error), rejected }
-      }
+      return ops.apply(args?.items)
     },
   }
 }
 
-function revertTool(options) {
+function revertTool(ops) {
   return {
     name: 'sticker_revert',
     description:
@@ -234,26 +145,100 @@ function revertTool(options) {
       render: (_args, value) => textBlocks(describeBackups(value)),
     },
     async execute(args) {
-      const profileDir = locate(options)
-      if (!profileDir) {
-        return { ok: false, error: '找不到 profile 目录。' }
-      }
-      try {
-        if (!args?.backup) {
-          return { ok: true, backups: listBackups(profileDir) }
-        }
-        const result = revertBackup(profileDir, args.backup)
-        return { ok: true, reverted: true, ...result }
-      } catch (error) {
-        return failure(error)
-      }
+      return ops.revert(args?.backup)
     },
   }
 }
 
+function sendJson(res, code, value) {
+  res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
+  res.end(JSON.stringify(value))
+}
+
+function readBody(req, limit = 256 * 1024) {
+  return new Promise((resolve) => {
+    let data = ''
+    let done = false
+    req.on('data', (chunk) => {
+      if (done) return
+      data += chunk
+      if (data.length > limit) {
+        done = true
+        resolve(null)
+      }
+    })
+    req.on('end', () => {
+      if (done) return
+      done = true
+      try {
+        resolve(data ? JSON.parse(data) : {})
+      } catch {
+        resolve(null)
+      }
+    })
+    req.on('error', () => {
+      if (done) return
+      done = true
+      resolve(null)
+    })
+  })
+}
+
+/** The Settings page talks to the same operations the tools use. */
+function registerRoutes(ctx, ops) {
+  const webServer = typeof ctx.get === 'function' ? ctx.get('webServer') : undefined
+  if (!webServer || typeof webServer.register !== 'function') return
+
+  ctx.effect(() => webServer.register({
+    kind: 'prefix',
+    path: '/api/plugin-sticker',
+    handler: async (req, res) => {
+      let url
+      try {
+        url = new URL(req.url, 'http://127.0.0.1')
+      } catch {
+        return sendJson(res, 400, { ok: false, error: 'bad url' })
+      }
+      const pathname = url.pathname
+      // Writing is gated on a custom header: a cross-origin page cannot set it
+      // without a CORS preflight, which this route never answers.
+      const trusted = req.headers['x-sticker-client'] === '1'
+      try {
+        if (req.method === 'GET' && pathname === '/api/plugin-sticker/list') {
+          return sendJson(res, 200, ops.list())
+        }
+        if (req.method === 'GET' && pathname === '/api/plugin-sticker/backups') {
+          return sendJson(res, 200, ops.backups())
+        }
+        if (req.method === 'POST' && pathname === '/api/plugin-sticker/apply') {
+          if (!trusted) return sendJson(res, 403, { ok: false, error: '缺少客户端标记，拒绝写入' })
+          const body = await readBody(req)
+          if (!body) return sendJson(res, 200, { ok: false, error: '请求体不是合法 JSON' })
+          return sendJson(res, 200, ops.apply(body.items))
+        }
+        if (req.method === 'POST' && pathname === '/api/plugin-sticker/revert') {
+          if (!trusted) return sendJson(res, 403, { ok: false, error: '缺少客户端标记，拒绝写入' })
+          const body = await readBody(req)
+          if (!body) return sendJson(res, 200, { ok: false, error: '请求体不是合法 JSON' })
+          return sendJson(res, 200, ops.revert(body.backup))
+        }
+        return sendJson(res, 404, { ok: false, error: '未知路由：' + pathname })
+      } catch (error) {
+        return sendJson(res, 200, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      }
+    },
+  }))
+}
+
 export function apply(ctx, config = {}) {
-  const options = { profileDir: typeof config?.profileDir === 'string' ? config.profileDir : undefined }
-  ctx.effect(() => ctx.tools.register(scanTool(options)))
-  ctx.effect(() => ctx.tools.register(applyTool(options)))
-  ctx.effect(() => ctx.tools.register(revertTool(options)))
+  const configured = typeof config?.profileDir === 'string' ? config.profileDir : undefined
+  const ops = createOps({
+    profileDir: () => resolveProfileDir({ configured, selfPackage: 'dsh-plugin-sticker', selfDir: SELF_DIR }),
+    installDir: process.env.DSH_INSTALL_DIR,
+  })
+
+  ctx.effect(() => ctx.tools.register(scanTool(ops)))
+  ctx.effect(() => ctx.tools.register(applyTool(ops)))
+  ctx.effect(() => ctx.tools.register(revertTool(ops)))
+  registerRoutes(ctx, ops)
 }

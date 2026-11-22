@@ -23,6 +23,17 @@
 3. **不污染 pnpm 仓库**。pnpm 的包文件和全局 store 是硬链接共享的；本插件写入时先写新文件再 rename 覆盖，切开链接，仓库那份一个字节都不动。
 4. **写入前完整备份**。原文件内容（或"原本不存在"）记在 `<profile>/.plugin-sticker/backups/<id>/manifest.json`，`sticker_revert` 一键还原。
 5. **不联网、不调模型、不执行外部命令**。全部逻辑是 Node 内建模块。
+6. **写接口带闸**。设置页的写操作要求一个自定义请求头；跨源页面无法在不触发 CORS 预检的前提下伪造它，所以本地其他网页脚本不能借 `127.0.0.1` 偷偷改你的包。
+
+## 设置页
+
+装好后打开 **设置 → 插件工牌**：
+
+- 每个可改的插件一行：包名、版本、装法，右边一个输入框直接改名字，回车或点「贴上」即写入。
+- 改不了的（DSH 自带包、没有写权限、`exports` 不是对象映射）单独列在下面，并写明原因。
+- 底部是备份列表，每条带「还原」。
+
+设置页和 agent 工具走**同一份实现**（`lib/ops.js`），所以两边行为一致：同样的校验、同样的备份、同样的报错。
 
 ## 三个工具
 
@@ -66,7 +77,9 @@ plugin_manager {"action": "install_bundle", "target": "<本仓库的 tarball 地
 ## 目录
 
 ```
-index.js            三个工具的定义与注册
+index.js            工具注册与 /api/plugin-sticker 路由
+client.js           「设置 → 插件工牌」那一页（自注册浏览器脚本）
+lib/ops.js          工具与设置页共用的操作实现（唯一一份规则）
 lib/profile.js      profile 定位、文件读取、node_modules 枚举
 lib/scan.js         扫描 bundle、判断装法/可写性/exports 状态
 lib/sticker.js      计划、写入、备份、还原
