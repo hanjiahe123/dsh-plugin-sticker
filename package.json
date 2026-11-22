@@ -44,5 +44,17 @@
     "locale",
     "rename"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hanjiahe123/dsh-plugin-sticker.git"
+  },
+  "homepage": "https://github.com/hanjiahe123/dsh-plugin-sticker#readme",
+  "bugs": {
+    "url": "https://github.com/hanjiahe123/dsh-plugin-sticker/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "license": "MIT"
 }

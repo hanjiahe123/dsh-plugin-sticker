@@ -66,13 +66,14 @@ sticker_revert {"backup": "<id>"}     → 还原到写入前
 
 ## 安装
 
-在 DSH 的「插件」页选择从 Git / 本地目录安装本仓库，或用：
-
 ```
-plugin_manager {"action": "install_bundle", "target": "<本仓库的 tarball 地址或本地目录>"}
+# 从 GitHub 按 tag 装（推荐：版本可锁，行为可复现）
+plugin_manager {"action":"install_bundle","target":"github:hanjiahe123/dsh-plugin-sticker#v0.2.0"}
 ```
 
-装完刷新「插件」页，新工具在下一次会话生效。
+也可以在 DSH 的「插件」页 → 添加插件，填上面的 `github:` 地址，或仓库 release 里的 tarball 链接。
+
+装完刷新「插件」页：设置页立刻可用，agent 工具在下一次会话生效。
 
 ## 目录
 
