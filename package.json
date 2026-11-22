@@ -1,0 +1,39 @@
+{
+  "name": "dsh-plugin-sticker",
+  "version": "0.1.0",
+  "description": "给已装的 DSH 插件贴中文工牌：扫描插件、按用途起名、写入 locale 元数据，并支持一键还原。",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "plugin-manager",
+    "locale",
+    "rename"
+  ],
+  "license": "MIT"
+}

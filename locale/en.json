@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Plugin stickers",
+    "description": "Give installed plugins readable names: scan them, name them by purpose, write locale metadata, and revert in one step."
+  }
+}
