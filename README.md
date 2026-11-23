@@ -1,8 +1,45 @@
-# 插件工牌 · dsh-plugin-sticker
+# 插件工牌
 
-给 DSH 里已经装好的插件贴一张"工牌"——把 `dsh-bili-scroll` 这种包名，换成「刷B站」这种能看懂的名字。
+**让 DSH 的插件列表说人话。**
 
-插件**不猜名字**。它只提供三件事：扫描、按你（或你的 agent）给的名字写入、按备份还原。名字由对话里的模型读完描述后决定，所以不花额外 token，也不会被别人的 README 带偏。
+装了十几个插件之后，插件页大概是这样的：
+
+```
+dsh-bili-scroll   dsh-whale-widget   dsh-posterflow-ai
+dsh-video-skin    dsh-univer-office  qq-mode-console
+```
+
+你知道哪个是哪个吗？想关掉某一个的时候，敢随手点吗？
+
+这个插件把它们变成这样：
+
+```
+刷B站    余额小鲸鱼       PosterFlow 启动器
+视频皮肤  Univer 文档办公  QQ 模式控制台
+```
+
+## 三十秒上手
+
+```
+plugin_manager {"action":"install_bundle","target":"dsh-plugin-sticker"}
+```
+
+刷新「插件」页 → **设置 → 插件工牌** → 每行改个名字，回车。完事。
+
+不想自己起名，也可以跟 agent 说一句「把没中文名的插件按用途起个名贴上」——它会先读描述和 README，再决定叫什么，所以不会瞎起。
+
+```
+# 或者从 GitHub 按 tag 装，版本锁死、可复现
+plugin_manager {"action":"install_bundle","target":"github:hanjiahe123/dsh-plugin-sticker#v0.3.3"}
+```
+
+## 为什么敢装
+
+- **只改显示名**。包名、入口、依赖、`main` 一个不动——配置、定时任务、历史会话全都照旧。
+- **每次都能还原**。写入前完整备份，设置页每条备份都带「还原」。
+- **写坏了会自己退**。写入前校验备份与磁盘一致，写后逐个回读，任何不一致立即整批回滚；已有 locale 是坏 JSON 就直接拒绝，绝不覆盖。
+- **更新丢了能找回**。升级会重建包目录、把名字冲掉（这是"显示名只有包内 locale 一个来源"的硬限制，绕不开）。本插件记着你起过的名字，更新后在设置页提示"N 个工牌丢了"，一键恢复。
+- **零依赖**。不联网、不调模型、不执行外部命令，全部 Node 内建模块。
 
 ## 它到底改了什么
 
@@ -97,20 +134,6 @@ sticker_revert {"backup": "<id>", "force": true}   → 覆盖之后的改动强�
 - **自带包改不了**。DSH 安装目录里的包是只读的，扫描时会标出来。
 - **需要写权限**。如果 profile 目录只读，或你在受限沙箱下运行，`sticker_apply` 会失败并告诉你原因。
 - **只改显示名**。想改包名请直接 fork 插件——包名一变，依赖解析和行 id 都会跟着变。
-
-## 安装
-
-```
-# npm（推荐）
-plugin_manager {"action":"install_bundle","target":"dsh-plugin-sticker"}
-
-# 或从 GitHub 按 tag 装，版本锁死、可复现
-plugin_manager {"action":"install_bundle","target":"github:hanjiahe123/dsh-plugin-sticker#v0.3.3"}
-```
-
-也可以在 DSH 的「插件」页 → 添加插件，填上面任一地址。
-
-装完刷新「插件」页：设置页立刻可用，agent 工具在下一次会话生效。
 
 ## 目录
 
