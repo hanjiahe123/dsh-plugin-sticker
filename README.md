@@ -100,11 +100,14 @@ sticker_revert {"backup": "<id>", "force": true}   → 覆盖之后的改动强�
 ## 安装
 
 ```
-# npm（推荐）
-plugin_manager {"action":"install_bundle","target":"dsh-plugin-sticker"}
+# 从 GitHub 按 tag 装，版本锁死、可复现
+plugin_manager {"action":"install_bundle","target":"github:hanjiahe123/dsh-plugin-sticker#v0.3.0"}
+```
 
-# 或从 GitHub 按 tag 装，版本锁死、可复现
-plugin_manager {"action":"install_bundle","target":"github:hanjiahe123/dsh-plugin-sticker#v0.2.1"}
+npm 上的 `dsh-plugin-sticker` 目前停在 0.2.1（发版时才更新），新版以 GitHub 的 tag 为准：
+
+```
+plugin_manager {"action":"install_bundle","target":"dsh-plugin-sticker"}
 ```
 
 也可以在 DSH 的「插件」页 → 添加插件，填上面任一地址。
