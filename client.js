@@ -104,8 +104,10 @@ window.__ModuleLoader__.load({
           for (const row of list.bundles || []) next[row.package] = row.title || ''
           setDrafts(next)
           setNote(null)
+          return true
         } catch (error) {
           setNote({ bad: true, text: String(error && error.message ? error.message : error) })
+          return false
         } finally {
           setLoading(false)
         }
@@ -128,8 +130,7 @@ window.__ModuleLoader__.load({
             const why = (result.rejected || []).map((item) => item.reason).join('；')
             throw new Error(why || result.error || '写入失败')
           }
-          setNote({ text: '已写入「' + title + '」。刷新「插件」页可见新名字。' })
-          await refresh()
+          if (await refresh()) setNote({ text: '已写入「' + title + '」。刷新「插件」页可见新名字。' })
         } catch (error) {
           setNote({ bad: true, text: String(error && error.message ? error.message : error) })
         } finally {
@@ -148,8 +149,9 @@ window.__ModuleLoader__.load({
             throw new Error(result.error || '还原失败')
           }
           setConflict(null)
-          setNote({ text: '已还原' + (result.forced ? '（覆盖了之后的改动）' : '') + '：' + (result.restored || []).join('、') })
-          await refresh()
+          if (await refresh()) {
+            setNote({ text: '已还原' + (result.forced ? '（覆盖了之后的改动）' : '') + '：' + (result.restored || []).join('、') })
+          }
         } catch (error) {
           setNote({ bad: true, text: String(error && error.message ? error.message : error) })
         } finally {
@@ -162,8 +164,9 @@ window.__ModuleLoader__.load({
         try {
           const result = await jpost('/reconcile', { fix: true, overwrite })
           if (!result.ok) throw new Error(result.error || '修复失败')
-          setNote({ text: '已恢复 ' + (result.fixed || 0) + ' 个工牌，纳入记录 ' + (result.adopted || 0) + ' 个。刷新「插件」页可见。' })
-          await refresh()
+          if (await refresh()) {
+            setNote({ text: '已恢复 ' + (result.fixed || 0) + ' 个工牌，纳入记录 ' + (result.adopted || 0) + ' 个。刷新「插件」页可见。' })
+          }
         } catch (error) {
           setNote({ bad: true, text: String(error && error.message ? error.message : error) })
         } finally {

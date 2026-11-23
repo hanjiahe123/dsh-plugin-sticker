@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-sticker",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "给已装的 DSH 插件贴中文工牌：设置页点一点改名，或让 agent 按用途起名；插件更新冲掉后能检测并一键恢复。",
   "type": "module",
   "main": "index.js",
