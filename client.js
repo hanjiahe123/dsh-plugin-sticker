@@ -86,14 +86,20 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(null)
       const [note, setNote] = React.useState(null)
       const [conflict, setConflict] = React.useState(null)
+      const [recon, setRecon] = React.useState(null)
 
       const refresh = React.useCallback(async () => {
         setLoading(true)
         try {
-          const [list, backupState] = await Promise.all([jget('/list'), jget('/backups')])
+          const [list, backupState, stickerState] = await Promise.all([
+            jget('/list'),
+            jget('/backups'),
+            jget('/reconcile'),
+          ])
           if (!list.ok) throw new Error(list.error || '读取失败')
           setBundles(list.bundles || [])
           setBackups(backupState.ok ? backupState.backups || [] : [])
+          setRecon(stickerState.ok ? stickerState : null)
           const next = {}
           for (const row of list.bundles || []) next[row.package] = row.title || ''
           setDrafts(next)
@@ -151,6 +157,20 @@ window.__ModuleLoader__.load({
         }
       }
 
+      async function repair(overwrite) {
+        setBusy('repair')
+        try {
+          const result = await jpost('/reconcile', { fix: true, overwrite })
+          if (!result.ok) throw new Error(result.error || '修复失败')
+          setNote({ text: '已恢复 ' + (result.fixed || 0) + ' 个工牌，纳入记录 ' + (result.adopted || 0) + ' 个。刷新「插件」页可见。' })
+          await refresh()
+        } catch (error) {
+          setNote({ bad: true, text: String(error && error.message ? error.message : error) })
+        } finally {
+          setBusy(null)
+        }
+      }
+
       const editable = bundles.filter((row) => row.canApply)
       const skipped = bundles.filter((row) => !row.canApply)
 
@@ -166,6 +186,43 @@ window.__ModuleLoader__.load({
         h('div', { 'data-ps-lead': '' },
           '给已装插件起个中文名。只写插件包里的 locale 文件，不改包名、不动依赖，随时可以还原。',
         ),
+        recon && (recon.summary.lost + recon.summary.changed) > 0
+          ? h('div', { 'data-ps-note': '' },
+            h('div', {},
+              '插件更新后有 ' + recon.summary.lost + ' 个工牌丢了' +
+              (recon.summary.changed > 0 ? '，另有 ' + recon.summary.changed + ' 个名字被别的来源改写' : '') + '。'),
+            h('div', { 'data-ps-row': '' },
+              recon.summary.lost > 0
+                ? h('button', {
+                  'data-ps-btn': '',
+                  'data-primary': '',
+                  disabled: busy === 'repair',
+                  onClick: () => repair(false),
+                }, '恢复丢失的（' + recon.summary.lost + '）')
+                : null,
+              recon.summary.changed > 0
+                ? h('button', {
+                  'data-ps-btn': '',
+                  disabled: busy === 'repair',
+                  onClick: () => repair(true),
+                }, '也覆盖被改写的（' + recon.summary.changed + '）')
+                : null,
+            ),
+          )
+          : null,
+        recon && (recon.unrecorded?.length ?? 0) > 0
+          ? h('div', { 'data-ps-note': '' },
+            h('div', {},
+              '还有 ' + recon.unrecorded.length + ' 个工牌没被记录。没有记录，插件更新后就没法提示你恢复。'),
+            h('div', { 'data-ps-row': '' },
+              h('button', {
+                'data-ps-btn': '',
+                disabled: busy === 'repair',
+                onClick: () => repair(false),
+              }, '纳入管理（' + recon.unrecorded.length + '）'),
+            ),
+          )
+          : null,
         note ? h('div', { 'data-ps-note': '', ...(note.bad ? { 'data-bad': '' } : {}) }, note.text) : null,
         conflict ? h('div', { 'data-ps-note': '', 'data-bad': '' },
           h('div', {}, conflict.message),

@@ -41,8 +41,9 @@
 | 工具 | 作用 |
 |---|---|
 | `sticker_scan` | 列出已装的 bundle：包名、版本、描述、README 摘录、有没有工牌、能不能改 |
-| `sticker_apply` | 按 `{package, title, description}` 写入，返回备份 id |
+| `sticker_apply` | 按 `{package, title, description}` 写入，返回备份 id，并记住这个名字 |
 | `sticker_revert` | 不传参列备份；传 `backup` 还原 |
+| `sticker_reconcile` | 检查记录的工牌是否还在；`fix: true` 恢复丢失的，`overwrite: true` 连被改写的也覆盖 |
 
 典型对话：
 
@@ -66,9 +67,32 @@ sticker_revert {"backup": "<id>", "force": true}   → 覆盖之后的改动强�
 3. **不重复还原**。带 `revertedAt` 的备份不会再执行（避免用旧备份反复覆盖新状态）。
 4. **不静默覆盖**。备份里记了写入后的内容，还原前先比对磁盘现状；对不上就中止并列出冲突文件，只有显式 `force` 才覆盖。
 
+## 工牌持久化
+
+名字记在 `<profile>/.plugin-sticker/stickers.json`——**只是记录，不碰插件包**。每次 `sticker_apply` 成功后写一条。
+
+检查时把每条记录分成四类：
+
+| 状态 | 含义 | 默认动作 |
+|---|---|---|
+| 正常 | 包里名字 = 记录 | 不动 |
+| 丢失 | 包里已经没有任何名字（多半是更新冲掉的） | `fix` 可一键恢复 |
+| 被改写 | 包里有名字但跟记录不同（可能上游改了自己的 locale） | **只提示**，要 `overwrite` 才覆盖 |
+| 不可用 / 已卸载 | 不能写 / 包不在了 | 只报告；卸载的保留记录，重装后还能恢复 |
+
+三个触发点：
+
+1. `sticker_reconcile` 工具
+2. 设置页顶部横幅：「恢复丢失的」/「也覆盖被改写的」/「纳入管理」
+3. DSH 启动时读一次——**只在日志里报个数字，不写任何文件**
+
+不做定时轮询：没必要，还容易和 pnpm 装包过程撞车。
+
+早期手工贴过、还没进记录的工牌，`fix: true` 会先做一次「纳入管理」：只记名字，不碰包。
+
 ## 局限（先说清楚）
 
-- **插件更新会掉**。更新会重建包目录，工牌跟着没了。重新贴一次即可；这不是 bug，是"改别人包"的固有代价。
+- **插件更新会把工牌冲掉**。更新重建包目录，locale 跟着没了。这不是能绕过的 bug——显示名只有包内 locale 一个来源，没有 profile 级覆盖通道。所以本插件做的是**持久化记录 + 更新后提示恢复**，见下一节。
 - **自带包改不了**。DSH 安装目录里的包是只读的，扫描时会标出来。
 - **需要写权限**。如果 profile 目录只读，或你在受限沙箱下运行，`sticker_apply` 会失败并告诉你原因。
 - **只改显示名**。想改包名请直接 fork 插件——包名一变，依赖解析和行 id 都会跟着变。
@@ -93,6 +117,7 @@ plugin_manager {"action":"install_bundle","target":"github:hanjiahe123/dsh-plugi
 index.js            工具注册与 /api/plugin-sticker 路由
 client.js           「设置 → 插件工牌」那一页（自注册浏览器脚本）
 lib/ops.js          工具与设置页共用的操作实现（唯一一份规则）
+lib/registry.js     工牌记录（stickers.json）的读写与损坏保护
 lib/profile.js      profile 定位、文件读取、node_modules 枚举
 lib/scan.js         扫描 bundle、判断装法/可写性/exports 状态
 lib/sticker.js      计划、写入、备份、还原

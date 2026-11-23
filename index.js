@@ -157,6 +157,67 @@ function revertTool(ops) {
   }
 }
 
+function describeReconcile(value) {
+  if (!value.ok) return '检查失败：' + value.error
+  const { summary } = value
+  const lines = [
+    '记录 ' + value.entries.length + ' 条：正常 ' + summary.ok + '、丢失 ' + summary.lost +
+      '、被改写 ' + summary.changed + '、不可用 ' + summary.unavailable + '、已卸载 ' + summary.removed,
+  ]
+  if (value.problem) lines.push('注意：' + value.problem)
+  if (value.unrecorded?.length) {
+    lines.push('另有 ' + value.unrecorded.length + ' 个工牌还没被记录（fix: true 可纳入管理，不写包）：' +
+      value.unrecorded.map((item) => item.package).join('、'))
+  }
+  for (const entry of value.entries) {
+    const name = entry.recorded?.title ?? '(无记录)'
+    if (entry.status === 'ok') {
+      lines.push('- `' + entry.package + '` · 正常 · ' + name)
+    } else if (entry.status === 'lost') {
+      lines.push('- `' + entry.package + '` · 丢失（包里已无名字，记为「' + name + '」）')
+    } else if (entry.status === 'changed') {
+      lines.push('- `' + entry.package + '` · 被改写 · 当前「' + (entry.currentTitle ?? '') + '」/ 记录「' + name + '」')
+    } else if (entry.status === 'unavailable') {
+      lines.push('- `' + entry.package + '` · 不可用（' + entry.reason + '）')
+    } else {
+      lines.push('- `' + entry.package + '` · 已卸载（记录保留，重装后可恢复）')
+    }
+  }
+  if (value.fixed || value.adopted) {
+    lines.push('', '已恢复 ' + (value.fixed || 0) + ' 个，纳入记录 ' + (value.adopted || 0) + ' 个。')
+  } else if (summary.lost + summary.changed > 0) {
+    lines.push('', '用 fix: true 恢复丢失的；连被改写的一起覆盖再加 overwrite: true。')
+  }
+  return lines.join('\n')
+}
+
+function reconcileTool(ops) {
+  return {
+    name: 'sticker_reconcile',
+    description:
+      '检查已记录的工牌是否还在：插件更新后包里的名字可能被冲掉。只读检查，传 fix 才写回。丢失的默认恢复；被别的来源改写的要 overwrite 才覆盖。',
+    parameters: {
+      type: 'object',
+      properties: {
+        fix: { type: 'boolean', description: 'true 时把丢失的工牌写回去' },
+        overwrite: { type: 'boolean', description: '配合 fix：连"当前名字与记录不同"的也覆盖（默认不动）' },
+      },
+      additionalProperties: false,
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => textBlocks(describeReconcile(value)),
+    },
+    async execute(args) {
+      try {
+        return ops.reconcile({ fix: args?.fix === true, overwrite: args?.overwrite === true })
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+  }
+}
+
 function sendJson(res, code, value) {
   res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
   res.end(JSON.stringify(value))
@@ -217,6 +278,15 @@ function registerRoutes(ctx, ops) {
         if (req.method === 'GET' && pathname === '/api/plugin-sticker/backups') {
           return sendJson(res, 200, ops.backups())
         }
+        if (req.method === 'GET' && pathname === '/api/plugin-sticker/reconcile') {
+          return sendJson(res, 200, ops.stickerState())
+        }
+        if (req.method === 'POST' && pathname === '/api/plugin-sticker/reconcile') {
+          if (!trusted) return sendJson(res, 403, { ok: false, error: '缺少客户端标记，拒绝写入' })
+          const body = await readBody(req)
+          if (!body) return sendJson(res, 200, { ok: false, error: '请求体不是合法 JSON' })
+          return sendJson(res, 200, ops.reconcile({ fix: body.fix === true, overwrite: body.overwrite === true }))
+        }
         if (req.method === 'POST' && pathname === '/api/plugin-sticker/apply') {
           if (!trusted) return sendJson(res, 403, { ok: false, error: '缺少客户端标记，拒绝写入' })
           const body = await readBody(req)
@@ -247,5 +317,21 @@ export function apply(ctx, config = {}) {
   ctx.effect(() => ctx.tools.register(scanTool(ops)))
   ctx.effect(() => ctx.tools.register(applyTool(ops)))
   ctx.effect(() => ctx.tools.register(revertTool(ops)))
+  ctx.effect(() => ctx.tools.register(reconcileTool(ops)))
   registerRoutes(ctx, ops)
+
+  // Startup check: report only. Restoring without being asked would edit other
+  // packages the moment the user launches DSH.
+  try {
+    const state = ops.stickerState()
+    const pending = state.summary.lost + state.summary.changed
+    if (pending > 0) {
+      console.log(
+        '[plugin-sticker] 工牌缺失 ' + state.summary.lost + ' 个、被改写 ' + state.summary.changed +
+        ' 个；在 设置 → 插件工牌 里可一键恢复。',
+      )
+    }
+  } catch {
+    // profile not resolvable in this host; the tools report that themselves
+  }
 }
