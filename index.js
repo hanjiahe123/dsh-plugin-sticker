@@ -60,6 +60,7 @@ function describeApply(value) {
     for (const file of item.localeFiles) lines.push('  ' + file)
   }
   for (const item of value.rejected ?? []) lines.push('- 跳过 `' + item.package + '`：' + item.reason)
+  for (const warning of value.warnings ?? []) lines.push('- 注意：' + warning)
   lines.push('', '刷新「插件」页可见新名字；显示不出来就重启一次 Harness。')
   return lines.join('\n')
 }
@@ -225,21 +226,26 @@ function sendJson(res, code, value) {
 
 function readBody(req, limit = 256 * 1024) {
   return new Promise((resolve) => {
-    let data = ''
+    const chunks = []
+    let size = 0
     let done = false
     req.on('data', (chunk) => {
       if (done) return
-      data += chunk
-      if (data.length > limit) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+      size += buffer.length
+      if (size > limit) {
         done = true
         resolve(null)
+        return
       }
+      chunks.push(buffer)
     })
     req.on('end', () => {
       if (done) return
       done = true
       try {
-        resolve(data ? JSON.parse(data) : {})
+        const text = Buffer.concat(chunks).toString('utf8')
+        resolve(text ? JSON.parse(text) : {})
       } catch {
         resolve(null)
       }
