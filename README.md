@@ -56,7 +56,15 @@
 ```
 sticker_revert                        → 列出所有备份
 sticker_revert {"backup": "<id>"}     → 还原到写入前
+sticker_revert {"backup": "<id>", "force": true}   → 覆盖之后的改动强行还原
 ```
+
+还原有四道检查：
+
+1. **备份结构**。字段缺失、路径不是绝对路径、`before` 类型不对，直接拒绝。
+2. **路径白名单**。只允许还原**当前 profile 里真实存在**的插件包内的三个文件：`package.json`、`locale/zh.json`、`locale/en.json`。路径先做 realpath，越界或经符号链接指到别处的，一律拒绝。
+3. **不重复还原**。带 `revertedAt` 的备份不会再执行（避免用旧备份反复覆盖新状态）。
+4. **不静默覆盖**。备份里记了写入后的内容，还原前先比对磁盘现状；对不上就中止并列出冲突文件，只有显式 `force` 才覆盖。
 
 ## 局限（先说清楚）
 

@@ -65,9 +65,15 @@ function describeApply(value) {
 }
 
 function describeBackups(value) {
-  if (!value.ok) return '操作失败：' + value.error
+  if (!value.ok) {
+    const lines = ['操作失败：' + value.error]
+    for (const conflict of value.conflicts ?? []) {
+      lines.push('- ' + (conflict.state === 'missing' ? '已被删除' : '已被改动') + '：' + conflict.path)
+    }
+    return lines.join('\n')
+  }
   if (value.reverted) {
-    return '已还原备份 ' + value.backupId + '：' + value.restored.join('、')
+    return '已还原备份 ' + value.backupId + '：' + value.restored.join('、') + (value.forced ? '（覆盖了之后的改动）' : '')
   }
   if (!value.backups?.length) return '还没有任何备份。'
   return [
@@ -137,6 +143,7 @@ function revertTool(ops) {
       type: 'object',
       properties: {
         backup: { type: 'string', description: '要还原的备份 id；省略则只列出备份' },
+        force: { type: 'boolean', description: '备份之后这些文件又改过时，仍然覆盖（默认 false，会中止并列出冲突）' },
       },
       additionalProperties: false,
     },
@@ -145,7 +152,7 @@ function revertTool(ops) {
       render: (_args, value) => textBlocks(describeBackups(value)),
     },
     async execute(args) {
-      return ops.revert(args?.backup)
+      return ops.revert(args?.backup, { force: args?.force === true })
     },
   }
 }
@@ -220,7 +227,7 @@ function registerRoutes(ctx, ops) {
           if (!trusted) return sendJson(res, 403, { ok: false, error: '缺少客户端标记，拒绝写入' })
           const body = await readBody(req)
           if (!body) return sendJson(res, 200, { ok: false, error: '请求体不是合法 JSON' })
-          return sendJson(res, 200, ops.revert(body.backup))
+          return sendJson(res, 200, ops.revert(body.backup, { force: body.force === true }))
         }
         return sendJson(res, 404, { ok: false, error: '未知路由：' + pathname })
       } catch (error) {

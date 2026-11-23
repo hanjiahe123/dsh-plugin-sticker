@@ -85,6 +85,7 @@ window.__ModuleLoader__.load({
       const [drafts, setDrafts] = React.useState({})
       const [busy, setBusy] = React.useState(null)
       const [note, setNote] = React.useState(null)
+      const [conflict, setConflict] = React.useState(null)
 
       const refresh = React.useCallback(async () => {
         setLoading(true)
@@ -130,12 +131,18 @@ window.__ModuleLoader__.load({
         }
       }
 
-      async function revert(id) {
+      async function revert(id, force = false) {
         setBusy(id)
         try {
-          const result = await jpost('/revert', { backup: id })
-          if (!result.ok) throw new Error(result.error || '还原失败')
-          setNote({ text: '已还原：' + (result.restored || []).join('、') })
+          const result = await jpost('/revert', { backup: id, force })
+          if (!result.ok) {
+            if (!force && Array.isArray(result.conflicts) && result.conflicts.length > 0) {
+              setConflict({ id, message: result.error })
+            }
+            throw new Error(result.error || '还原失败')
+          }
+          setConflict(null)
+          setNote({ text: '已还原' + (result.forced ? '（覆盖了之后的改动）' : '') + '：' + (result.restored || []).join('、') })
           await refresh()
         } catch (error) {
           setNote({ bad: true, text: String(error && error.message ? error.message : error) })
@@ -160,6 +167,16 @@ window.__ModuleLoader__.load({
           '给已装插件起个中文名。只写插件包里的 locale 文件，不改包名、不动依赖，随时可以还原。',
         ),
         note ? h('div', { 'data-ps-note': '', ...(note.bad ? { 'data-bad': '' } : {}) }, note.text) : null,
+        conflict ? h('div', { 'data-ps-note': '', 'data-bad': '' },
+          h('div', {}, conflict.message),
+          h('div', { 'data-ps-row': '' },
+            h('button', {
+              'data-ps-btn': '',
+              onClick: () => revert(conflict.id, true),
+            }, '仍要还原（会覆盖之后的改动）'),
+            h('button', { 'data-ps-btn': '', onClick: () => setConflict(null) }, '取消'),
+          ),
+        ) : null,
 
         h('div', { 'data-ps-list': '' },
           editable.length === 0
