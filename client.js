@@ -21,7 +21,15 @@ window.__ModuleLoader__.load({
     const API = '/api/plugin-sticker'
 
     const asJson = async (res) => {
-      if (!res.ok) throw new Error('HTTP ' + res.status + (res.status === 401 ? '（没权限）' : ''))
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(
+            'HTTP ' + res.status + '：这个页面没有登录凭据。' +
+            '请用 `dsh web` 打印出来的完整地址（带令牌）重新打开页面；直接输 127.0.0.1 端口会被拒。',
+          )
+        }
+        throw new Error('HTTP ' + res.status)
+      }
       return res.json()
     }
     const jget = async (path) => asJson(await fetch(API + path, { credentials: 'same-origin' }))
@@ -42,40 +50,47 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
-[data-ps-page]{display:flex;flex-direction:column;gap:18px;padding:2px 2px 8px;max-width:680px;}
-[data-ps-lead]{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#9aa0a6);}
+[data-ps-page]{display:flex;flex-direction:column;gap:18px;padding:2px 2px 8px;max-width:700px;}
+[data-ps-lead]{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#8b8f96);}
 [data-ps-head]{display:flex;align-items:center;gap:10px;}
-[data-ps-head] h2{margin:0;font-size:14px;font-weight:600;}
+[data-ps-head] h2{margin:0;font-size:14px;font-weight:600;color:var(--dsw-alias-label-primary,inherit);}
 [data-ps-grow]{flex:1;min-width:0;}
 [data-ps-list]{display:flex;flex-direction:column;gap:2px;
-  border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.12));border-radius:10px;overflow:hidden;}
+  border:1px solid var(--dsw-alias-border-l2,rgba(128,128,128,.28));border-radius:10px;overflow:hidden;}
 [data-ps-row]{display:flex;align-items:center;gap:10px;padding:9px 11px;
-  border-top:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08));}
+  border-top:1px solid var(--dsw-alias-border-l1,rgba(128,128,128,.18));}
 [data-ps-row]:first-child{border-top:0;}
 [data-ps-row][data-off]{opacity:.55;}
-[data-ps-meta]{display:flex;flex-direction:column;gap:3px;width:230px;min-width:0;flex:none;}
+[data-ps-meta]{display:flex;flex-direction:column;gap:3px;width:220px;min-width:0;flex:none;}
 [data-ps-name]{font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--dsw-alias-label-primary,inherit);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-[data-ps-tags]{display:flex;gap:6px;flex-wrap:wrap;font-size:10.5px;color:var(--dsw-alias-label-tertiary,#9aa0a6);}
-[data-ps-tag]{padding:1px 6px;border-radius:5px;background:var(--dsw-alias-bg-overlay,rgba(128,128,128,.14));}
-[data-ps-input]{flex:1;min-width:0;box-sizing:border-box;padding:6px 9px;border-radius:7px;font-size:12px;
-  border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.14));
-  background:var(--dsw-alias-bg-overlay,rgba(128,128,128,.12));color:inherit;font-family:inherit;}
-[data-ps-input]:focus{outline:none;border-color:var(--dsw-alias-border-accent,#3b82f6);}
-[data-ps-input][disabled]{cursor:not-allowed;}
-[data-ps-btn]{flex:none;padding:6px 11px;border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit;
-  border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.16));
-  background:var(--dsw-alias-bg-overlay,rgba(128,128,128,.12));color:inherit;}
-[data-ps-btn]:hover:not([disabled]){background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.2));}
+[data-ps-tags]{display:flex;gap:6px;flex-wrap:wrap;font-size:10.5px;color:var(--dsw-alias-label-secondary,#8b8f96);}
+[data-ps-tag]{padding:1px 6px;border-radius:5px;background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.16));}
+[data-ps-input]{flex:1;min-width:0;box-sizing:border-box;padding:7px 10px;border-radius:8px;font-size:12.5px;
+  border:1px solid var(--dsw-alias-border-l2,rgba(128,128,128,.34));
+  background:var(--dsw-alias-bg-layer-1,rgba(128,128,128,.10));
+  color:var(--dsw-alias-label-primary,inherit);font-family:inherit;}
+[data-ps-input]::placeholder{color:var(--dsw-alias-label-secondary,#8b8f96);}
+[data-ps-input]:hover:not([disabled]){border-color:var(--dsw-alias-label-secondary,#8b8f96);}
+[data-ps-input]:focus{outline:none;border-color:var(--dsw-alias-brand-primary,#3b82f6);
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--dsw-alias-brand-primary,#3b82f6) 28%, transparent);}
+[data-ps-input][disabled]{cursor:not-allowed;opacity:.6;}
+[data-ps-btn]{flex:none;padding:7px 12px;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;
+  border:1px solid var(--dsw-alias-border-l2,rgba(128,128,128,.34));
+  background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.14));
+  color:var(--dsw-alias-label-primary,inherit);}
+[data-ps-btn]:hover:not([disabled]){background:var(--dsw-alias-bg-layer-1,rgba(128,128,128,.22));}
 [data-ps-btn][disabled]{opacity:.45;cursor:default;}
-[data-ps-btn][data-primary]{border-color:transparent;background:var(--dsw-alias-brand-bg,#3b82f6);color:#fff;}
-[data-ps-note]{font-size:11.5px;line-height:17px;padding:7px 10px;border-radius:8px;
-  background:var(--dsw-alias-bg-overlay,rgba(128,128,128,.12));}
-[data-ps-note][data-bad]{color:#f87171;}
-[data-ps-empty]{padding:14px;text-align:center;font-size:12px;color:var(--dsw-alias-label-tertiary,#9aa0a6);}
-[data-ps-sub]{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--dsw-alias-label-tertiary,#9aa0a6);}
+[data-ps-btn][data-primary]{border-color:transparent;background:var(--dsw-alias-brand-primary,#3b82f6);color:#fff;}
+[data-ps-note]{font-size:11.5px;line-height:17px;padding:8px 10px;border-radius:8px;
+  background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.14));}
+[data-ps-note][data-bad]{color:var(--dsw-alias-state-error-primary,#e5484d);}
+[data-ps-empty]{padding:16px;text-align:center;font-size:12px;color:var(--dsw-alias-label-secondary,#8b8f96);}
+[data-ps-sub]{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--dsw-alias-label-secondary,#8b8f96);}
 [data-ps-bak]{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:11.5px;
-  color:var(--dsw-alias-label-tertiary,#9aa0a6);}
+  color:var(--dsw-alias-label-secondary,#8b8f96);}
+[data-ps-hint]{font-size:11px;color:var(--dsw-alias-label-secondary,#8b8f96);}
 `
 
     function Panel() {
@@ -188,6 +203,9 @@ window.__ModuleLoader__.load({
         ),
         h('div', { 'data-ps-lead': '' },
           '给已装插件起个中文名。只写插件包里的 locale 文件，不改包名、不动依赖，随时可以还原。',
+        ),
+        h('div', { 'data-ps-hint': '' },
+          '改完按回车或点「贴上」即保存；回到「插件」页刷新一下就能看到新名字。',
         ),
         recon && (recon.summary.lost + recon.summary.changed) > 0
           ? h('div', { 'data-ps-note': '' },
